@@ -4,6 +4,7 @@ import os
 import random
 import barcode
 from barcode.writer import ImageWriter
+from barcode.codex import Code128
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -19,6 +20,7 @@ class User(db.Model):
     password = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='cashier')
 
+
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
@@ -27,17 +29,16 @@ class Product(db.Model):
     barcode = db.Column(db.String(50), nullable=True)
 
 
-
 def generate_barcode_image(barcode_number):
     folder = os.path.join('static', 'barcodes')
     os.makedirs(folder, exist_ok=True)
     filepath_without_ext = os.path.join(folder, str(barcode_number))
     filepath_with_ext = filepath_without_ext + ".png"
     if not os.path.exists(filepath_with_ext):
-        CODE128 = barcode.get_barcode_class('code128')
-        code128 = CODE128(barcode_number, writer=ImageWriter())
+        code128 = Code128(barcode_number, writer=ImageWriter())
         code128.save(filepath_without_ext)
     return filepath_with_ext
+
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -45,7 +46,8 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user = User.query.filter_by(username=username, password=password).first()
+        user = User.query.filter_by(username=username,
+                                    password=password).first()
         if user:
             session['username'] = user.username
             session['role'] = user.role
@@ -54,29 +56,36 @@ def login():
             error = "Invalid username or password"
     return render_template('login.html', error=error)
 
+
 @app.route('/dashboard')
 def dashboard():
     if 'username' not in session:
         return redirect(url_for('login'))
-    
+
     role = session.get('role')
     products = Product.query.all()
 
     for product in products:
         if product.barcode:
             generate_barcode_image(product.barcode)
-    
+
     total_inventory_value = sum(p.price * p.stock for p in products)
-    
+
     if role == 'admin':
-        return render_template('admin_dashboard.html', products=products, total_inventory_value=total_inventory_value)
+        return render_template('admin_dashboard.html',
+                               products=products,
+                               total_inventory_value=total_inventory_value)
     elif role == 'cashier':
-        return render_template('cashier_dashboard.html', products=products, total_inventory_value=total_inventory_value)
+        return render_template('cashier_dashboard.html',
+                               products=products,
+                               total_inventory_value=total_inventory_value)
     else:
         return redirect(url_for('login'))
 
+
 def sale():
     return render_template('sale.html')
+
 
 @app.route('/add_product', methods=['GET', 'POST'])
 def add_product():
@@ -94,17 +103,15 @@ def add_product():
 
         generate_barcode_image(barcode_number)
 
-        new_product = Product(
-            name=name,
-            price=price,
-            stock=stock,
-            barcode=barcode_number
-        )
+        new_product = Product(name=name,
+                              price=price,
+                              stock=stock,
+                              barcode=barcode_number)
         db.session.add(new_product)
         db.session.commit()
-        
 
     return render_template('add_product.html')
+
 
 @app.route('/delete_product/<int:product_id>', methods=['POST'])
 def delete_product(product_id):
@@ -123,6 +130,7 @@ def delete_product(product_id):
     db.session.commit()
     return redirect(url_for('dashboard'))
 
+
 @app.route('/sale', methods=['GET', 'POST'])
 def sale():
     if 'username' not in session:
@@ -136,7 +144,7 @@ def sale():
         quantity = request.form.get('quantity', type=int)
         barcode = request.form.get('barcode')
 
-        if barcode:  
+        if barcode:
             product = Product.query.filter_by(barcode=barcode).first()
             if not product:
                 message = "Product with this barcode not found."
@@ -146,7 +154,7 @@ def sale():
                 product.stock -= quantity
                 db.session.commit()
                 message = f"Sold {quantity} of {product.name} successfully."
-        elif product_id:  
+        elif product_id:
             product = Product.query.get(product_id)
             if not product:
                 message = "Product not found."
@@ -164,10 +172,6 @@ def sale():
     return render_template('sale.html', products=products)
 
 
-
-
-
-
 @app.route('/logout')
 def logout():
     session.clear()
@@ -177,14 +181,20 @@ def logout():
 with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
-        db.session.add(User(username='admin', password='adminpass', role='admin'))
+        db.session.add(
+            User(username='admin', password='adminpass', role='admin'))
     if not User.query.filter_by(username='cashier1').first():
-        db.session.add(User(username='cashier1', password='cashierpass', role='cashier'))
+        db.session.add(
+            User(username='cashier1', password='cashierpass', role='cashier'))
 
     if not Product.query.first():
         sample_products = [
-            Product(name="Wine", price=1000.0, stock=5, barcode="579340769370"),
-            Product(name="Whisky", price=800.0, stock=3, barcode="699789159401")
+            Product(name="Wine", price=1000.0, stock=5,
+                    barcode="579340769370"),
+            Product(name="Whisky",
+                    price=800.0,
+                    stock=3,
+                    barcode="699789159401")
         ]
         for p in sample_products:
             if p.barcode:
