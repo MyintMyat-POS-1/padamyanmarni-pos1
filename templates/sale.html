@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Make a Sale</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <style>
+        video {
+            border: 1px solid #ccc;
+            width: 100%;
+            max-width: 320px;
+            height: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Make a Sale</h1>
+<a href="{{ url_for('dashboard') }}">Back to Dashboard</a> |
+<a href="{{ url_for('logout') }}">Logout</a>
+<hr>
+
+{% if message %}
+    <p style="color: green;">{{ message }}</p>
+{% endif %}
+
+<!-- Sale Form -->
+<form method="POST" action="{{ url_for('sale') }}" id="sale-form">
+    <label for="barcode">Scan Barcode (optional):</label><br>
+    <input type="text" id="barcode" name="barcode" autofocus autocomplete="off" placeholder="Scan or enter barcode"><br><br>
+
+    <label for="product_id">Or Select Product:</label><br>
+    <select name="product_id" id="product_id">
+        <option value="" selected>-- Choose Product --</option>
+        {% for product in products %}
+            <option value="{{ product.id }}">
+                {{ product.name }} (Stock: {{ product.stock }}) - ${{ "%.2f"|format(product.price) }}
+            </option>
+        {% endfor %}
+    </select><br><br>
+
+    <label for="quantity">Quantity:</label><br>
+    <input type="number" id="quantity" name="quantity" min="1" required value="1"><br><br>
+
+    <button type="submit">Sell</button>
+</form>
+
+<!-- Camera Scanner Section -->
+<h2>Scan Barcode with Camera</h2>
+<video id="video" playsinline></video><br>
+<button id="start-scan">Start Scan</button>
+<button id="stop-scan" disabled>Stop Scan</button>
+
+<!-- ZXing Barcode Scanner Logic -->
+<script>
+    const codeReader = new ZXing.BrowserBarcodeReader();
+    const videoElement = document.getElementById('video');
+    const startScanBtn = document.getElementById('start-scan');
+    const stopScanBtn = document.getElementById('stop-scan');
+    const barcodeInput = document.getElementById('barcode');
+    const form = document.getElementById('sale-form');
+
+    let selectedDeviceId;
+
+    startScanBtn.addEventListener('click', () => {
+        codeReader.getVideoInputDevices()
+            .then((videoInputDevices) => {
+                if (videoInputDevices.length === 0) {
+                    alert('No video input devices found');
+                    return;
+                }
+                selectedDeviceId = videoInputDevices[0].deviceId;
+                codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
+                    if (result) {
+                        barcodeInput.value = result.text;
+                        alert("Barcode scanned: " + result.text);
+
+                        // Optional: set focus to quantity or auto-submit
+                        setTimeout(() => {
+                            form.submit();  // auto-submit after scan
+                        }, 500);
+
+                        codeReader.reset();
+                        stopScanBtn.disabled = true;
+                        startScanBtn.disabled = false;
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error(err);
+                    }
+                });
+                startScanBtn.disabled = true;
+                stopScanBtn.disabled = false;
+            })
+            .catch(err => console.error(err));
+    });
+
+    stopScanBtn.addEventListener('click', () => {
+        codeReader.reset();
+        startScanBtn.disabled = false;
+        stopScanBtn.disabled = true;
+    });
+
+    // Pressing Enter on Barcode input manually submits
+    barcodeInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.submit();
+        }
+    });
+</script>
+
+</body>
+</html>
